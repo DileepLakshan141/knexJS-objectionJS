@@ -1,0 +1,299 @@
+Phase 1 -  Setup
+-------------------------------
+
+1. nest new [your-app-name]
+
+2. npm install knex objection pg
+
+3. npm install -D @types/knex @types/node (these are dev dependencies)
+
+4. create .env and set the db configurations inside it
+
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_USERNAME=postgres
+DB_PASSWORD=your_password
+DB_NAME=pcbuilder_db
+DB_SCHEMA=public
+
+# Application
+PORT=3000
+NODE_ENV=development
+
+5. create src/config/database.config.ts file
+
+// src/config/database.config.ts
+import { ConfigService } from '@nestjs/config';
+import { Knex } from 'knex';
+
+export const createKnexConfig = (configService: ConfigService): Knex.Config => ({
+  client: 'pg',
+  connection: {
+    host: configService.get<string>('DB_HOST', 'localhost'),
+    port: configService.get<number>('DB_PORT', 5432),
+    user: configService.get<string>('DB_USERNAME', 'postgres'),
+    password: configService.get<string>('DB_PASSWORD', ''),
+    database: configService.get<string>('DB_NAME', 'pcbuilder_db'),
+    charset: 'utf8',
+  },
+  pool: {
+    min: 2,
+    max: 10,
+  },
+  migrations: {
+    tableName: 'knex_migrations',
+    directory: './src/database/migrations',
+  },
+  seeds: {
+    directory: './src/database/seeds',
+  },
+  debug: configService.get<string>('NODE_ENV') === 'development',
+});
+
+6. generate database module using nest generate module database command , add the following code
+
+// src/database/database.module.ts
+import { Module, Global } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import knex from 'knex';
+import { Model } from 'objection';
+import { createKnexConfig } from '../config/database.config';
+
+@Global()
+@Module({
+  imports: [ConfigModule],
+  providers: [
+    {
+      provide: 'KnexConnection',
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const knexConfig = createKnexConfig(configService);
+        const knexInstance = knex(knexConfig);
+        
+        // Bind Objection.js to Knex
+        Model.knex(knexInstance);
+        
+        return knexInstance;
+      },
+    },
+  ],
+  exports: ['KnexConnection'],
+})
+export class DatabaseModule {}
+
+7. update app module
+
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { DatabaseModule } from './database/database.module';
+import { ConfigModule } from '@nestjs/config';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+    }),
+    DatabaseModule,
+  ],
+  controllers: [AppController],
+  providers: [AppService],
+})
+export class AppModule {}
+
+8. create mdoels folder inside database and add base.model.ts 
+
+import { Model } from 'objection';
+
+export class BaseModel extends Model {
+  static get modelPaths() {
+    return [__dirname];
+  }
+
+  readonly id!: number;
+  createdAt!: Date;
+  updatedAt!: Date;
+
+  $beforeInsert() {
+    this.createdAt = new Date();
+    this.updatedAt = new Date();
+  }
+
+  $beforeUpdate() {
+    this.updatedAt = new Date();
+  }
+}
+
+9. create a component model ts file inside components folder
+
+// src/components/component.model.ts
+import { BaseModel } from '../database/models/base.model';
+
+export enum ComponentType {
+  CPU = 'cpu',
+  GPU = 'gpu',
+  RAM = 'ram',
+  MOTHERBOARD = 'motherboard',
+  STORAGE = 'storage',
+  PSU = 'psu',
+  CASE = 'case',
+}
+
+export class Component extends BaseModel {
+  static tableName = 'components';
+
+  id!: number;
+  name!: string;
+  type!: ComponentType;
+  manufacturer!: string;
+  model!: string;
+  specifications!: Record<string, any>;
+  price!: number;
+  stock!: number;
+
+  static get jsonSchema() {
+    return {
+      type: 'object',
+      required: ['name', 'type', 'manufacturer', 'model', 'price'],
+      
+      properties: {
+        id: { type: 'integer' },
+        name: { type: 'string', minLength: 1, maxLength: 255 },
+        type: { 
+          type: 'string', 
+          enum: Object.values(ComponentType) 
+        },
+        manufacturer: { type: 'string', minLength: 1, maxLength: 100 },
+        model: { type: 'string', minLength: 1, maxLength: 100 },
+        specifications: { 
+          type: 'object',
+          default: {}
+        },
+        price: { type: 'number', minimum: 0 },
+        stock: { type: 'integer', minimum: 0, default: 0 },
+        createdAt: { type: 'string', format: 'date-time' },
+        updatedAt: { type: 'string', format: 'date-time' },
+      },
+    };
+  }
+}
+
+10. create a db migration 
+
+add this file inside migrations/001_create_component_table.ts 
+
+// src/database/migrations/001_create_components_table.ts
+import { Knex } from 'knex';
+
+export async function up(knex: Knex): Promise<void> {
+  await knex.schema.createTable('components', (table) => {
+    table.increments('id').primary();
+    table.string('name', 255).notNullable();
+    table.enum('type', [
+      'cpu',
+      'gpu', 
+      'ram',
+      'motherboard',
+      'storage',
+      'psu',
+      'case'
+    ]).notNullable();
+    table.string('manufacturer', 100).notNullable();
+    table.string('model', 100).notNullable();
+    table.jsonb('specifications').defaultTo('{}');
+    table.decimal('price', 10, 2).notNullable();
+    table.integer('stock').defaultTo(0);
+    table.timestamp('created_at').defaultTo(knex.fn.now());
+    table.timestamp('updated_at').defaultTo(knex.fn.now());
+    
+    table.index(['type', 'manufacturer']);
+  });
+}
+
+export async function down(knex: Knex): Promise<void> {
+  await knex.schema.dropTable('components');
+}
+
+11. add knexfile.ts to the forRoot
+
+// knexfile.ts
+import { Knex } from 'knex';
+import { config } from 'dotenv';
+
+config();
+
+const knexConfig: Knex.Config = {
+  client: 'pg',
+  connection: {
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432'),
+    user: process.env.DB_USERNAME || 'postgres',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'pcbuilder_db',
+  },
+  migrations: {
+    tableName: 'knex_migrations',
+    directory: './src/database/migrations',
+  },
+  seeds: {
+    directory: './src/database/seeds',
+  },
+};
+
+export default knexConfig;
+
+12. update the scripts
+
+"build": "nest build",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migrate:make": "knex migrate:make --knexfile knexfile.ts",
+    "migrate:latest": "knex migrate:latest --knexfile knexfile.ts",
+    "migrate:rollback": "knex migrate:rollback --knexfile knexfile.ts",
+    "migrate:up": "knex migrate:up --knexfile knexfile.ts",
+    "migrate:down": "knex migrate:down --knexfile knexfile.ts",
+    "seed:make": "knex seed:make --knexfile knexfile.ts",
+    "seed:run": "knex seed:run --knexfile knexfile.ts"
+
+13. create test config inside test folder
+
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../",
+  "testEnvironment": "node",
+  "testRegex": ".e2e-spec.ts$",
+  "transform": {
+    "^.+\\.(t|j)s$": "ts-jest"
+  },
+  "setupFilesAfterEnv": ["<rootDir>/test/setup.ts"]
+}
+
+14. add test/setup.ts file 
+
+// test/setup.ts
+import { Test } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+
+let app: INestApplication;
+
+global.beforeAll(async () => {
+  const moduleRef = await Test.createTestingModule({
+    imports: [],
+  }).compile();
+
+  app = moduleRef.createNestApplication();
+  await app.init();
+});
+
+global.afterAll(async () => {
+  await app.close();
+});
