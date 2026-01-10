@@ -1,16 +1,15 @@
-// knexfile.ts
+import { Knex } from 'knex';
 import { config } from 'dotenv';
-
 config();
 
-const knexConfig = {
+const KnexConfig: Knex.Config = {
   client: 'pg',
   connection: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432'),
-    user: process.env.DB_USERNAME || 'postgres',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'pcbuilder_db',
+    host: process.env.DB_HOST,
+    port: parseInt(process.env.DB_PORT!),
+    user: process.env.DB_USERNAME,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
   },
   migrations: {
     tableName: 'knex_migrations',
@@ -21,4 +20,5 @@ const knexConfig = {
   },
 };
 
-export default knexConfig;
+export { KnexConfig };
+export default KnexConfig;
