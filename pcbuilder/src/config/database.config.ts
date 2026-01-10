@@ -1,9 +1,7 @@
+// src/config/database.config.ts
 import { ConfigService } from '@nestjs/config';
-import { Knex } from 'knex';
 
-export const createKnexConfig = (
-  configService: ConfigService,
-): Knex.Config => ({
+export const createKnexConfig = (configService: ConfigService): any => ({
   client: 'pg',
   connection: {
     host: configService.get<string>('DB_HOST', 'localhost'),

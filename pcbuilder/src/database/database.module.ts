@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+// src/database/database.module.ts
 import { Module, Global } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import Knex from 'knex';
+import knex from 'knex';
 import { Model } from 'objection';
-import { createKnexConfig } from 'src/config/database.config';
+import { createKnexConfig } from '../config/database.config';
 
 @Global()
 @Module({
@@ -13,8 +15,11 @@ import { createKnexConfig } from 'src/config/database.config';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const knexConfig = createKnexConfig(configService);
-        const knexInstance = Knex(knexConfig);
+        const knexInstance = knex(knexConfig);
+
+        // Bind Objection.js to Knex
         Model.knex(knexInstance);
+
         return knexInstance;
       },
     },

@@ -1,9 +1,9 @@
-import { Knex } from 'knex';
+// knexfile.ts
 import { config } from 'dotenv';
 
 config();
 
-const knexConfig: Knex.Config = {
+const knexConfig = {
   client: 'pg',
   connection: {
     host: process.env.DB_HOST || 'localhost',
