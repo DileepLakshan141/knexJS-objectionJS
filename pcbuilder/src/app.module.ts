@@ -3,19 +3,17 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
-import { ComponentsService } from './components/components.service';
-import { ComponentsController } from './components/components.controller';
 import { ItemsService } from './items/items.service';
 import { ItemsController } from './items/items.controller';
 import { ItemsModule } from './items/items.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
     DatabaseModule,
     ItemsModule,
   ],
-  controllers: [AppController, ComponentsController, ItemsController],
-  providers: [AppService, ComponentsService, ItemsService],
+  controllers: [AppController, ItemsController],
+  providers: [AppService, ItemsService],
 })
 export class AppModule {}

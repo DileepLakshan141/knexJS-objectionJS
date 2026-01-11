@@ -2,15 +2,15 @@ import { Model } from 'objection';
 
 export class BaseModel extends Model {
   readonly id!: number;
-  createdAt!: Date;
-  updatedAt!: Date;
+  created_at!: Date;
+  updated_at!: Date;
 
   $beforeInsert() {
-    this.createdAt = new Date();
-    this.updatedAt = new Date();
+    this.created_at = new Date();
+    this.updated_at = new Date();
   }
 
   $beforeUpdate() {
-    this.updatedAt = new Date();
+    this.updated_at = new Date();
   }
 }
